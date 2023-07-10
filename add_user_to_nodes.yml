@@ -1,0 +1,23 @@
+---
+#
+#Playbook to add user account to an array of rhel servers for k8 cluster
+#Add correct node names / IP addresses to inventory file
+#
+#You will need to change the user account hash to correct user in playbook
+#
+#Hints
+#ansible-playbook -i input.ini add_user_to_nodes.yml
+#
+- hosts: all
+  tasks:
+  - name: add user to hosts
+    become: yes
+    user:
+      name: spitera
+      uid: 8093
+      shell: /bin/bash
+      groups: infra,wheel
+      generate_ssh_key: yes
+      state: present
+      password: "$5$WJbNQx3k$veFiiKCaenA1SYSdOMWpDb4K2938I8KKqGfBbPgCKqB"
+      append: yes

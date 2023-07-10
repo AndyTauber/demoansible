@@ -1,0 +1,146 @@
+---
+#
+#Script to deploy an array of rhel servers for k8 cluster
+#Server prefix and number of VMs to deploy is variable input
+#
+#Hints
+#ansible-vault encrypt group_vars/k8_secrets.yml --vault-password-file ../vault_pass.txt
+#ansible-playbook deploy_rhel_servers.yml --extra-vars "server_prefix=<prefix> server_num=6" --vault-password-file ../vault_pass.txt
+#
+#once the nodes are deployed, use kubespray to create k8 cluster
+#ansible-playbook -i inventory/newrhel/<prefix>.ini cluster.yml -b -v --extra-vars "@inventory/http://stash.prod.icd/projects/ANS/repos/k8_elasticsearch/browsenewrhel/group_vars/k8_secrets.yml" --vault-password-file ../vault_pass.txt
+#
+- hosts: localhost
+  vars_files:
+    - group_vars/k8_secrets.yml
+    - group_vars/k8_variables.yml
+  connection: local
+  vars:
+    nios_provider:
+      host: "{{ nios_host }}"
+      username: "{{ svc_k8s_username }}"
+      password: "{{ svc_k8s_password }}"
+  tasks:
+  - name: check if last host already exits and fail if so
+    command: ping -c1 "{{ server_prefix }}{{ server_num }}.{{ domain }}"
+    delegate_to: localhost
+    register: ping_result
+    failed_when: ping_result.rc == 0
+
+  - name: create an infoblox record for the server
+    nios_host_record:
+      name: "{{ server_prefix }}{{ item }}.{{ domain }}"
+      view: "{{ k8_view }}"
+      ipv4:
+        - address: "{{ lookup('nios_next_ip', '172.24.67.0/24', provider=nios_provider)[0] }}"
+      comment: ATD K8 Cluster server A record
+      state: present
+      provider: "{{ nios_provider }}"
+    with_sequence: start=1 end={{server_num|int}}
+    register: ip_create
+
+#  - name: check the IP return variable for the array of VMs
+#    debug:
+#      var: ip_create
+
+  # deploy the vCenter VM
+  - name: Create rhel VM from a template
+    vmware_guest:
+      hostname: "{{ vCenter_server }}"
+      username: "{{ svc_k8s_username }}"
+      password: "{{ svc_k8s_password }}"
+      validate_certs: no
+      datacenter: VRALab
+      cluster: K8S
+      folder: /VRALab/vm/K8S
+      guest_id: rhel7_64Guest
+      name: "{{ server_prefix }}{{ item }}"
+      state: poweredon
+      template: k8template_new
+      networks:
+      - name: "{{ vm_portgroup }}"
+        type: static
+        ip: "{{ip_create.results[item|int - 1].invocation.module_args.ipv4[0].ipv4addr}}"
+        netmask: "{{ vm_netmask }}"
+        gateway: "{{ vm_gateway }}"
+        start_connected: yes
+      customization:
+        domain: "{{ domain }}"
+        hostname: "{{ server_prefix }}{{ item }}"
+        dns_servers:
+        - 172.23.20.70
+#      disk:
+#      - size_gb: 40
+#        type: thin
+#        datastore: "{{ vm_datastore }}"
+      hardware:
+        memory_mb: "{{ vm_mb }}"
+        num_cpus: "{{ vm_cpu }}"
+      wait_for_ip_address: yes
+    delegate_to: localhost
+    with_sequence: start=1 end={{server_num|int}}
+    register: vm_info
+
+  - name: add hosts to group
+    add_host:
+      name: "{{ ip_create.results[item|int - 1].invocation.module_args.ipv4[0].ipv4addr }}"
+      groups: just_created
+      hname: "{{ server_prefix }}{{ item }}"
+    with_sequence: start=1 end={{server_num|int}}
+    register: dyn_group
+
+  - name: check the vm record return variable
+    debug:
+      var: dyn_group
+
+  # write out the new inventory file for kubespray
+  - name: Write all
+    local_action: shell echo "[all]" > "inventory/newrhel/{{server_prefix}}.ini"
+  - name: Write  nodes all
+    local_action: shell echo "{{ server_prefix }}{{ item }}  ansible_host={{ip_create.results[item|int - 1].invocation.module_args.ipv4[0].ipv4addr}}  ip={{ip_create.results[item|int - 1].invocation.module_args.ipv4[0].ipv4addr}}" >> "inventory/newrhel/{{server_prefix}}.ini"
+    with_sequence: start=1 end={{server_num|int}}
+
+  - name: Write kubemaster
+    local_action: shell echo "[kube-master]" >> "inventory/newrhel/{{server_prefix}}.ini"
+  - name: Write  nodes kubemaster
+    local_action: shell echo "{{ server_prefix }}{{ item }}" >> "inventory/newrhel/{{server_prefix}}.ini"
+    with_sequence: start=1 end=2
+
+  - name: Write kube-node
+    local_action: shell echo "[kube-node]" >> "inventory/newrhel/{{server_prefix}}.ini"
+  - name: Write  nodes kube-node
+    local_action: shell echo "{{ server_prefix }}{{ item }}" >> "inventory/newrhel/{{server_prefix}}.ini"
+    with_sequence: start=1 end={{server_num|int}}
+
+  - name: Write etcd
+    local_action: shell echo "[etcd]" >> "inventory/newrhel/{{server_prefix}}.ini"
+  - name: Write  nodes etcd
+    local_action: shell echo "{{ server_prefix }}{{ item }}" >> "inventory/newrhel/{{server_prefix}}.ini"
+    with_sequence: start=1 end=3
+
+  - name: Write children
+    local_action: shell echo "[k8s-cluster:children]" >> "inventory/newrhel/{{server_prefix}}.ini"
+  - name: Write kube-node2
+    local_action: shell echo "kube-node" >> "inventory/newrhel/{{server_prefix}}.ini"
+  - name: Write kube-master2
+    local_action: shell echo "kube-master" >> "inventory/newrhel/{{server_prefix}}.ini"
+  - name: Write calico
+    local_action: shell echo "[calico-rr]" >> "inventory/newrhel/{{server_prefix}}.ini"
+
+  - name: Write vault
+    local_action: shell echo "[vault]" >> "inventory/newrhel/{{server_prefix}}.ini"
+  - name: Write  nodes vault
+    local_action: shell echo "{{ server_prefix }}{{ item }}" >> "inventory/newrhel/{{server_prefix}}.ini"
+    with_sequence: start=1 end=3
+
+
+##########################
+# prep the new rhel nodes
+##########################
+- name: Configure rhel nodes
+  hosts: just_created
+  become: yes
+  become_user: root
+  roles:
+    - rhel-satreg
+    - k8-prep

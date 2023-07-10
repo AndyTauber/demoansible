@@ -1,0 +1,5 @@
+---
+# role rhel-satreg variables
+  sat6_fqdn: painf6sat01.acme.com
+  org: Acme
+  activationkey: RHEL7-x86_64-Base-Standard

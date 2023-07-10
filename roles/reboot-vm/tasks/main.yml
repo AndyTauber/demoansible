@@ -1,0 +1,12 @@
+---
+  - ping:
+  - name: shutdown node
+    become: yes
+    become_user: root
+    command: shutdown -r +1
+
+  - name: wait for server to come back up
+    wait_for_connection:
+      delay: 120
+      timeout: 300
+  - ping:

@@ -1,0 +1,29 @@
+---
+# tasks file for rhel-satreg
+- name: Install the katello-ca-consumer-latest.noarch.rpm
+  yum:
+    name: http://{{ sat6_fqdn }}/pub/katello-ca-consumer-latest.noarch.rpm
+    state: present
+
+- name: Register to Satellite6 only for content
+  redhat_subscription:
+    state: present
+    activationkey: "{{ activationkey }}"
+    org_id: "{{ org }}"
+    pool: 2c98878862c016490162c021f26e063b
+  register: 'reg_return'
+
+- name: attach Satellite repo rhel-7-server-satellite-tools
+  command: "subscription-manager repos --enable=rhel-7-server-satellite-tools-6.3-rpms"
+
+- name: attach Satellite repo rhel-7-server-extras-rpms
+  command: "subscription-manager repos --enable=rhel-7-server-extras-rpms"
+
+- name: Install the katello-agent
+  yum:
+    name: katello-agent
+    state: latest
+  when: reg_return is success
+  notify:
+    - Start katello-agent
+    - Enable katello-agent

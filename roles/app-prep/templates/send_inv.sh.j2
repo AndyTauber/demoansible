@@ -1,0 +1,16 @@
+cd /root
+cp inventory.log inventory-`date --iso`-`uname -n`.log
+echo inventory-`date --iso`-`uname -n`.log > curl_name
+echo "curl -v -S -u k8_poster:98evSC8x11ja -X POST -H \"X-Atlassian-Token: no-check\" -F \"file=@" > curl_start
+echo "\" -F \"comment=" > curl_start1
+uname -n > curl_mid1
+date > curl_mid2
+echo "\" \"http://confluence.acme.net/rest/api/content/27755076/child/attachment\"" > curl_end
+start_var=$(cat curl_start)
+start_var1=$(cat curl_start1)
+filename=$(cat curl_name)
+mid_var1=$(cat curl_mid1)
+mid_var2=$(cat curl_mid2)
+end_var=$(cat curl_end)
+curl_var=$start_var$filename$start_var1$mid_var1$mid_var2$end_var
+eval $curl_var

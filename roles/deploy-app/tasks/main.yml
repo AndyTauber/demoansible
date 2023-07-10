@@ -1,0 +1,94 @@
+---
+# deploy go
+- template:
+    src: profile.j2
+    dest: /root/.profile
+    mode: 0744
+- file:
+    path: /root/code
+    state: directory
+
+- name: get the go code
+  shell: 'wget https://dl.google.com/go/go1.10.3.linux-amd64.tar.gz'
+  args:
+    chdir: /root
+- name: unpack the go code
+  shell: 'tar -C /root -xzf go1.10.3.linux-amd64.tar.gz'
+  args:
+    chdir: /root
+
+- name: Install jsonnet and jsonnet-bundler
+  shell: '. /root/.profile;go get {{ item.source }} && go install {{ item.source }}'
+  args:
+    chdir: /root/code
+    creates: '/root/code/bin/{{ item.binary }}'
+  with_items:
+    - { source: 'github.com/google/go-jsonnet/jsonnet', binary: 'jsonnet' }
+    - { source: 'github.com/jsonnet-bundler/jsonnet-bundler/cmd/jb', binary: 'jb' }
+
+- name: Create directory for the jsonnet templates
+  file:
+    path: /root/atd-prometheus
+    state: directory
+
+- name: Get the jsonnet templates
+  shell: '/root/code/bin/jb init && /root/code/bin/jb install github.com/coreos/prometheus-operator/contrib/kube-prometheus/jsonnet/kube-prometheus'
+  args:
+    chdir: /root/atd-prometheus
+    creates: /root/atd-prometheus/jsonnetfile.json
+
+- template:
+    src: atd-prometheus.jsonnet.j2
+    dest: /root/atd-prometheus/atd-prometheus.jsonnet
+
+- template:
+    src: atd-alertmanager-config.yml.j2
+    dest: /root/atd-prometheus/atd-alertmanager-config.yml
+
+- template:
+    src: atd-sc-pro1.yaml.j2
+    dest: /root/atd-prometheus/atd-sc-pro1.yaml
+
+- name: Create output directory for the manifests
+  file:
+    path: /root/atd-prometheus/manifests
+    state: directory
+
+- name: Create storage class for prometheus persistent disk
+  shell: '/opt/bin/kubectl create -f atd-sc-pro1.yaml'
+  args:
+    chdir: /root/atd-prometheus
+
+- name: remove the old jsonnet file
+  file:
+    path: /root/atd-prometheus/jsonnetfile.json
+    state: absent
+
+- name: Generate the manifests
+  shell: '/root/code/bin/jsonnet -J vendor -m manifests atd-prometheus.jsonnet'
+  args:
+    chdir: /root/atd-prometheus
+    creates: /root/atd-prometheus/jsonnetfile.json
+  register: generate_manifests
+
+- debug:
+    var=generate_manifests
+
+- name: Create list of kube-prometheus json files
+  find:
+    path: /root/atd-prometheus/manifests
+    patterns: "*.json"
+  register: find_kube_prometheus_json
+  changed_when: False
+
+- debug:
+    var=find_kube_prometheus_json
+
+- name: Apply kube-prometheus json files
+  shell: "kubectl apply -f {{ item }}"
+  register: kubectl_apply_prometheus
+  changed_when: "kubectl_apply_prometheus.stdout.find('created') != -1"
+  with_items: "{{ find_kube_prometheus_json.files | map(attribute='path') | sort }}"
+
+- debug:
+    var=kubectl_apply_prometheus

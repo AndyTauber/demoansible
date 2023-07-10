@@ -1,0 +1,20 @@
+---
+  domain: "acme.com"
+
+# infoblox
+  nios_host: infoblox.acme.com
+  svc_k8s_username: svc_k8s
+  k8_view: Internal
+
+# vSphere
+  vCenter_server: dbvravcenter01.acme.com
+  vm_template: k8template_new
+  coreos_template: coreos_blank_template
+  vm_datastore: msadev_nfs
+  vm_portgroup: VLAN-67
+  vm_netmask: 255.255.255.0
+  vm_gateway: 172.24.67.1
+  vm_vlan: 67
+  vm_cpu: 2
+  vm_mb: 8192
+  vm_disk_gb: 60
