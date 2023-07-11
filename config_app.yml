@@ -1,0 +1,8 @@
+- name: Configure app servers
+  hosts: clients
+  become: yes
+  become_user: root
+  roles:
+    - prep-app
+    - deploy-app
+    - reboot-vm
