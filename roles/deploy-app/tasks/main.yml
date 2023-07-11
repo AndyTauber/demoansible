@@ -16,26 +16,15 @@
   shell: 'tar -C /root -xzf go1.10.3.linux-amd64.tar.gz'
   args:
     chdir: /root
+  register: unpack_go
 
-- name: Install jsonnet and jsonnet-bundler
-  shell: '. /root/.profile;go get {{ item.source }} && go install {{ item.source }}'
-  args:
-    chdir: /root/code
-    creates: '/root/code/bin/{{ item.binary }}'
-  with_items:
-    - { source: 'github.com/google/go-jsonnet/jsonnet', binary: 'jsonnet' }
-    - { source: 'github.com/jsonnet-bundler/jsonnet-bundler/cmd/jb', binary: 'jb' }
+- debug:
+    var=unpack_go
 
 - name: Create directory for the jsonnet templates
   file:
     path: /root/prometheus
     state: directory
-
-- name: Get the jsonnet templates
-  shell: '/root/code/bin/jb init && /root/code/bin/jb install github.com/coreos/prometheus-operator/contrib/kube-prometheus/jsonnet/kube-prometheus'
-  args:
-    chdir: /root/prometheus
-    creates: /root/prometheus/jsonnetfile.json
 
 - template:
     src: prometheus.jsonnet.j2
@@ -58,13 +47,3 @@
   file:
     path: /root/prometheus/jsonnetfile.json
     state: absent
-
-- name: Generate the manifests
-  shell: '/root/code/bin/jsonnet -J vendor -m manifests prometheus.jsonnet'
-  args:
-    chdir: /root/prometheus
-    creates: /root/prometheus/jsonnetfile.json
-  register: generate_manifests
-
-- debug:
-    var=generate_manifests
