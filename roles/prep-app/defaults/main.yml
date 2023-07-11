@@ -1,5 +1,5 @@
 ---
   app_users:
-    - { username: dduck, uid: 1235, primgroup: infra, othergroups: wheel, passwd: "$6$vz0HKgVOM4JwmEPF$jrAVUOe1iOWMdeODOLasfIz5ABe.NHAJgSLBDBVmHAj6ClJfe1YvZcRJTfo6Z2DgewN2Hiea3vu3ftw8ytjUP." }
-    - { username: bbunny, uid: 7031, primgroup: infra, othergroups: wheel, passwd: "$5$VZhG4nus$kHz5FseOZwz97mb40KSZOtkf54/dgZW3Ff4hBaBlpC8" }
-    - { username: efudd, uid: 7021, primgroup: infra, othergroups: wheel, passwd: "$5$YcPqLCD3$RvKjcWjoflq.eh00g06Wan10tkPJ.FOvJhiXZPVAhQB" }
+    - { username: dduck, uid: 1235, primgroup: infra, othergroups: root, passwd: "$6$vz0HKgVOM4JwmEPF$jrAVUOe1iOWMdeODOLasfIz5ABe.NHAJgSLBDBVmHAj6ClJfe1YvZcRJTfo6Z2DgewN2Hiea3vu3ftw8ytjUP." }
+    - { username: bbunny, uid: 7031, primgroup: infra, othergroups: root, passwd: "$5$VZhG4nus$kHz5FseOZwz97mb40KSZOtkf54/dgZW3Ff4hBaBlpC8" }
+    - { username: efudd, uid: 7021, primgroup: infra, othergroups: root, passwd: "$5$YcPqLCD3$RvKjcWjoflq.eh00g06Wan10tkPJ.FOvJhiXZPVAhQB" }
